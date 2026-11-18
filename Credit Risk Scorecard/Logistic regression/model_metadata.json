@@ -1,0 +1,24 @@
+{
+  "model_type": "Logistic Regression",
+  "features": [
+    "revolving_util_woe",
+    "late_90_days_woe",
+    "past_due_30_59_woe",
+    "past_due_60_89_woe",
+    "age_woe",
+    "monthly_income_woe",
+    "real_estate_loans_woe",
+    "dependents_woe",
+    "debt_ratio_woe"
+  ],
+  "n_features": 9,
+  "train_size": 105000,
+  "test_size": 45000,
+  "auc_train": 0.8528,
+  "auc_test": 0.8538,
+  "gini_test": 0.7076,
+  "ks_test": 0.5538,
+  "scorecard_pdo": 20,
+  "scorecard_base": 600,
+  "scorecard_odds0": 0.0526
+}

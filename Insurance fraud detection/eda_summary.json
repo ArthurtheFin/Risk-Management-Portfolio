@@ -1,0 +1,47 @@
+{
+  "n_records": 1000,
+  "n_features": 36,
+  "fraud_count": 247,
+  "legit_count": 753,
+  "fraud_rate": 0.247,
+  "imbalance_ratio": 3.05,
+  "n_categorical": 19,
+  "n_numerical": 17,
+  "top_cat_features": [
+    {
+      "column": "incident_type",
+      "p_value": 2e-06
+    },
+    {
+      "column": "incident_severity",
+      "p_value": 0.0
+    },
+    {
+      "column": "authorities_contacted",
+      "p_value": 0.040574
+    }
+  ],
+  "top_num_features": [
+    {
+      "Variable": "vehicle_claim",
+      "correlation": 0.17004909646695326
+    },
+    {
+      "Variable": "total_claim_amount",
+      "correlation": 0.1636514890148048
+    },
+    {
+      "Variable": "property_claim",
+      "correlation": 0.13783514746520403
+    },
+    {
+      "Variable": "injury_claim",
+      "correlation": 0.09097470078676152
+    },
+    {
+      "Variable": "umbrella_limit",
+      "correlation": 0.058621657640444844
+    }
+  ],
+  "missing_after_clean": 0
+}

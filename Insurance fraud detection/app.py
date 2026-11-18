@@ -1,0 +1,267 @@
+import warnings
+warnings.filterwarnings('ignore')
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import shap, pickle, json, io
+import seaborn as sns
+from sklearn.metrics import (roc_auc_score, average_precision_score,
+    f1_score, recall_score, precision_score,
+    confusion_matrix, roc_curve, precision_recall_curve)
+
+st.set_page_config(
+    page_title='Insurance Fraud Detection',
+    page_icon='🔍',
+    layout='wide',
+    initial_sidebar_state='expanded',
+)
+
+st.markdown('''<style>
+.fraud-alert{background:#FFEBEE;border-left:4px solid #E53935;padding:1rem;border-radius:4px;margin:0.5rem 0;}
+.legit-alert{background:#E8F5E9;border-left:4px solid #43A047;padding:1rem;border-radius:4px;margin:0.5rem 0;}
+.reason-code{background:#FFF3E0;border-left:3px solid #FF8F00;padding:0.5rem 1rem;margin:0.3rem 0;border-radius:2px;font-size:0.9rem;}
+</style>''', unsafe_allow_html=True)
+
+@st.cache_resource
+def load_artifacts():
+    with open('model_xgb.pkl','rb') as f: model=pickle.load(f)
+    with open('shap_explainer.pkl','rb') as f: explainer=pickle.load(f)
+    with open('encoders.pkl','rb') as f: encoders=pickle.load(f)
+    with open('model_metadata.json') as f: meta=json.load(f)
+    df_sample=pd.read_csv('fraud_features.csv')
+    return model,explainer,encoders,meta,df_sample
+
+model,explainer,encoders,meta,df_sample=load_artifacts()
+FEATURE_NAMES=model.get_booster().feature_names
+THRESHOLD=meta['threshold']
+
+def predict_claim(df):
+    X=df[FEATURE_NAMES].fillna(0)
+    prob=model.predict_proba(X)[:,1]
+    pred=(prob>=THRESHOLD).astype(int)
+    return prob,pred
+
+def get_shap_values(X_row):
+    return explainer(X_row)
+
+def get_reason_codes(shap_row,feature_names,top_n=5):
+    s=pd.Series(shap_row,index=feature_names)
+    return s[s>0].sort_values(ascending=False).head(top_n)
+
+def encode_inputs(raw):
+    row={f:0 for f in FEATURE_NAMES}
+    for k in ['total_claim_amount','injury_claim','property_claim',
+              'policy_annual_premium','umbrella_limit','witnesses',
+              'number_of_vehicles_involved','months_as_customer','auto_year']:
+        if k in raw and k in row: row[k]=raw[k]
+    row['no_witnesses']=1 if raw.get('witnesses',1)==0 else 0
+    row['is_new_policy']=1 if raw.get('policy_age_months',12)<12 else 0
+    row['claim_amount_outlier']=1 if raw.get('total_claim_amount',0)>80000 else 0
+    row['high_claim_no_witness']=1 if row['claim_amount_outlier']==1 and row['no_witnesses']==1 else 0
+    row['injury_no_police_report']=1 if raw.get('police_report','YES')=='NO' and raw.get('injury_claim',0)>0 else 0
+    row['fraud_flag_score']=row['no_witnesses']+row['is_new_policy']+row['claim_amount_outlier']+row['injury_no_police_report']
+    te_maps=encoders.get('te_maps',{})
+    gm=df_sample['target'].mean()
+    le_enc=encoders.get('label_encoders',{})
+    for raw_col,feat_col in [('incident_severity','incident_severity_le'),
+                              ('collision_type','collision_type_le'),
+                              ('incident_type','incident_type_le'),
+                              ('policy_csl','policy_csl_le')]:
+        if feat_col in row and raw_col in raw and raw_col in le_enc:
+            try: row[feat_col]=int(le_enc[raw_col].transform([raw[raw_col]])[0])
+            except: row[feat_col]=0
+    for rc in ['incident_state','incident_city','auto_make','auto_model','insured_relationship']:
+        tc=rc+'_te'
+        if tc in row and rc in raw:
+            row[tc]=te_maps.get(rc,{}).get(raw[rc],gm)
+    return pd.DataFrame([row])
+
+# ── Sidebar ──────────────────────────────────────────────────────────────
+st.sidebar.title('🔍 Fraud Detection')
+st.sidebar.markdown('**Insurance Claims Analyzer**')
+st.sidebar.divider()
+page=st.sidebar.radio('Chọn trang',
+    ['🔍 Single Claim','📊 Batch Scoring','📈 Model Performance'])
+st.sidebar.divider()
+st.sidebar.markdown('**Model Info**')
+st.sidebar.metric('PR-AUC', f"{meta['performance']['pr_auc']:.3f}")
+st.sidebar.metric('Recall', f"{meta['performance']['recall']:.3f}")
+st.sidebar.metric('F1',     f"{meta['performance']['f1']:.3f}")
+st.sidebar.metric('Threshold', f"{THRESHOLD:.3f}")
+
+# ══ PAGE 1 ══
+if page=='🔍 Single Claim':
+    st.title('🔍 Single Claim Fraud Assessment')
+    with st.form('claim_form'):
+        st.subheader('📋 Thông tin Claim')
+        c1,c2,c3=st.columns(3)
+        with c1:
+            st.markdown('**Tài chính**')
+            total_claim =st.number_input('Total Claim ($)',0,500000,15000,500)
+            injury_claim=st.number_input('Injury Claim ($)',0,200000,5000,500)
+            prop_claim  =st.number_input('Property Claim ($)',0,200000,3000,500)
+            premium     =st.number_input('Annual Premium ($)',500,20000,1200,100)
+        with c2:
+            st.markdown('**Sự cố**')
+            severity =st.selectbox('Incident Severity',['Minor Damage','Major Damage','Total Loss','Trivial Damage'])
+            inc_type =st.selectbox('Incident Type',['Single Vehicle Collision','Multi-vehicle Collision','Vehicle Theft','Parked Car'])
+            col_type =st.selectbox('Collision Type',['Side Collision','Rear Collision','Front Collision','?'])
+            n_veh    =st.slider('Số xe liên quan',1,4,1)
+            witnesses=st.slider('Số nhân chứng',0,3,1)
+        with c3:
+            st.markdown('**Policy & Xe**')
+            pol_age  =st.number_input('Policy Age (tháng)',0,600,24,1)
+            police   =st.selectbox('Biên bản công an?',['YES','NO'])
+            umbrella =st.number_input('Umbrella Limit ($M)',0,10,1,1)
+            auto_yr  =st.slider('Năm sản xuất xe',1995,2015,2010)
+            months_c =st.number_input('Thời gian KH (tháng)',0,500,36,1)
+        submitted=st.form_submit_button('🔍 Đánh giá Fraud Risk',
+                                         use_container_width=True,type='primary')
+    if submitted:
+        raw={
+            'total_claim_amount':total_claim,'injury_claim':injury_claim,
+            'property_claim':prop_claim,'policy_annual_premium':premium,
+            'incident_severity':severity,'incident_type':inc_type,
+            'collision_type':col_type,'number_of_vehicles_involved':n_veh,
+            'witnesses':witnesses,'policy_age_months':pol_age,
+            'police_report':police,'umbrella_limit':umbrella*1000000,
+            'auto_year':auto_yr,'months_as_customer':months_c,
+        }
+        Xi=encode_inputs(raw)
+        prob,pred=predict_claim(Xi)
+        fp=float(prob[0]); is_fraud=pred[0]==1
+        st.divider()
+        st.subheader('📊 Kết quả')
+        rc1,rc2,rc3=st.columns([2,1,1])
+        with rc1:
+            if is_fraud:
+                st.markdown('<div class="fraud-alert"><h3>🚨 CẢNH BÁO FRAUD</h3><p>Khuyến nghị: <strong>Chuyển điều tra viên</strong></p></div>',unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="legit-alert"><h3>✅ CLAIM HỢP LỆ</h3><p>Khuyến nghị: <strong>Tiếp tục xử lý bình thường</strong></p></div>',unsafe_allow_html=True)
+        with rc2:
+            st.metric('P(Fraud)',f'{fp*100:.1f}%',f'{(fp-THRESHOLD)*100:+.1f}% vs threshold')
+        with rc3:
+            rl=('🔴 Rất cao' if fp>0.7 else '🟠 Cao' if fp>THRESHOLD else '🟡 Trung bình' if fp>0.3 else '🟢 Thấp')
+            st.metric('Risk Level',rl)
+        # Gauge bar
+        fig_g,ax=plt.subplots(figsize=(8,1.2))
+        ax.barh([0],[1],color='#E0E0E0',height=0.4)
+        ax.barh([0],[fp],color='#E53935' if is_fraud else '#43A047',height=0.4)
+        ax.axvline(THRESHOLD,color='orange',lw=2,linestyle='--')
+        ax.text(THRESHOLD+0.01,0.25,f'Threshold\n{THRESHOLD:.2f}',fontsize=8,color='orange',va='center')
+        ax.text(fp-0.02,0,f'{fp*100:.1f}%',color='white',fontweight='bold',va='center',ha='right',fontsize=11)
+        ax.set_xlim(0,1);ax.set_ylim(-0.4,0.6)
+        ax.set_xticks([0,0.25,0.5,0.75,1.0])
+        ax.set_xticklabels(['0%','25%','50%','75%','100%'])
+        ax.set_yticks([])
+        for sp in ax.spines.values(): sp.set_visible(False)
+        ax.set_title('Fraud Probability',fontsize=10,fontweight='bold')
+        st.pyplot(fig_g,use_container_width=True); plt.close()
+        # SHAP
+        st.subheader('🔬 SHAP Explanation')
+        with st.spinner('Đang tính SHAP values...'):
+            try:
+                sv=get_shap_values(Xi[FEATURE_NAMES])
+                shap.waterfall_plot(sv[0],max_display=12,show=False)
+                fig_wf=plt.gcf()
+                plt.title(f'SHAP Waterfall — P(fraud)={fp:.3f}',fontsize=11,fontweight='bold')
+                st.pyplot(fig_wf,use_container_width=True); plt.close()
+                st.subheader('📋 Top Reason Codes')
+                rc=get_reason_codes(sv[0].values,FEATURE_NAMES)
+                if is_fraud:
+                    for rank,(feat,val) in enumerate(rc.items(),1):
+                        cf=feat.replace('_te','').replace('_le','').replace('_enc','').replace('_',' ').title()
+                        st.markdown(f'<div class="reason-code"><strong>#{rank}</strong> {cf} <span style="float:right;color:#E53935;">+{val:.4f}</span></div>',unsafe_allow_html=True)
+                else:
+                    st.info('Claim được đánh giá là hợp lệ — không có reason codes cảnh báo.')
+            except Exception as e:
+                st.warning(f'SHAP error: {e}')
+        # Flags
+        st.subheader('🚩 Behavioral Flags')
+        flags={
+            'Không có nhân chứng':witnesses==0,
+            'Policy mới (<1 năm)':pol_age<12,
+            'Claim > $80K':total_claim>80000,
+            'Injury không biên bản':police=='NO' and injury_claim>0,
+            'Claim cao + không nhân chứng':total_claim>80000 and witnesses==0,
+        }
+        fcols=st.columns(len(flags))
+        for col,(fn,fv) in zip(fcols,flags.items()):
+            col.markdown(f'<div style="text-align:center;padding:8px;background:{"#FFEBEE" if fv else "#E8F5E9"};border-radius:8px;font-size:0.8rem;">{"🚨" if fv else "✅"}<br><strong style="color:{"red" if fv else "green"}">{fn}</strong></div>',unsafe_allow_html=True)
+
+# ══ PAGE 2 ══
+elif page=='📊 Batch Scoring':
+    st.title('📊 Batch Claim Scoring')
+    st.info('Upload CSV với feature columns đã encode (format như fraud_features.csv)')
+    uploaded=st.file_uploader('Upload CSV',type=['csv'])
+    if uploaded:
+        df_b=pd.read_csv(uploaded)
+        st.write(f'Loaded: **{len(df_b):,} claims**')
+        st.dataframe(df_b.head(5))
+        if st.button('▶ Score All Claims',type='primary'):
+            with st.spinner(f'Scoring {len(df_b):,} claims...'):
+                for col in set(FEATURE_NAMES)-set(df_b.columns): df_b[col]=0
+                pb,pd_arr=predict_claim(df_b)
+                df_b['fraud_probability']=pb.round(4)
+                df_b['prediction']=pd_arr
+                df_b['risk_level']=pd.cut(pb,[0,0.3,THRESHOLD,0.7,1.0],
+                    labels=['Low','Medium','High','Very High'])
+            c1,c2,c3,c4=st.columns(4)
+            c1.metric('Total',f'{len(df_b):,}')
+            c2.metric('Flagged',f'{pd_arr.sum():,}',f'{pd_arr.mean()*100:.1f}%')
+            c3.metric('Cleared',f'{(pd_arr==0).sum():,}')
+            c4.metric('Avg P(Fraud)',f'{pb.mean()*100:.1f}%')
+            fig_b,axes=plt.subplots(1,2,figsize=(14,4))
+            df_b['fraud_probability'].hist(bins=40,ax=axes[0],color='#78909C',edgecolor='white')
+            axes[0].axvline(THRESHOLD,color='orange',lw=2,linestyle='--',label=f'Threshold={THRESHOLD:.2f}')
+            axes[0].set_title('Score Distribution'); axes[0].legend()
+            rc_counts=df_b['risk_level'].value_counts()
+            c_map={'Low':'#43A047','Medium':'#FFA726','High':'#EF5350','Very High':'#B71C1C'}
+            axes[1].bar(rc_counts.index,rc_counts.values,
+                color=[c_map.get(str(r),'#78909C') for r in rc_counts.index],edgecolor='white')
+            axes[1].set_title('Risk Distribution')
+            st.pyplot(fig_b,use_container_width=True); plt.close()
+            st.download_button('Download Results',df_b.to_csv(index=False),
+                'fraud_scored.csv','text/csv',use_container_width=True)
+
+# ══ PAGE 3 ══
+elif page=='📈 Model Performance':
+    st.title('📈 Model Performance Dashboard')
+    perf=meta['performance']
+    m1,m2,m3,m4,m5=st.columns(5)
+    m1.metric('PR-AUC',f"{perf['pr_auc']:.3f}",'> 0.75 ✓')
+    m2.metric('AUC-ROC',f"{perf['auc_roc']:.3f}",'> 0.80 ✓')
+    m3.metric('F1',f"{perf['f1']:.3f}",'> 0.75 ✓')
+    m4.metric('Recall',f"{perf['recall']:.3f}",'> 0.80 ✓')
+    m5.metric('Precision',f"{perf['precision']:.3f}")
+    st.divider()
+    cm_data=meta.get('confusion_matrix',{})
+    if cm_data:
+        cm_arr=np.array([[cm_data['TN'],cm_data['FP']],[cm_data['FN'],cm_data['TP']]])
+        fig_cm,ax_cm=plt.subplots(figsize=(5,4))
+        sns.heatmap(cm_arr,annot=True,fmt=',d',cmap='Blues',
+            xticklabels=['Legit','Fraud'],yticklabels=['Legit','Fraud'],
+            linewidths=0.5,ax=ax_cm,annot_kws={'size':14,'weight':'bold'})
+        ax_cm.set_xlabel('Predicted'); ax_cm.set_ylabel('Actual')
+        col_cm,col_info=st.columns([1,1])
+        col_cm.pyplot(fig_cm); plt.close()
+        with col_info:
+            st.markdown(f"""
+**Interpretation:**
+- ✅ **True Positive:** {cm_data['TP']:,} fraud caught
+- ❌ **False Negative:** {cm_data['FN']:,} fraud missed
+- ⚠️ **False Positive:** {cm_data['FP']:,} legit flagged
+- ✅ **True Negative:** {cm_data['TN']:,} legit cleared
+""")
+    if 'shap_top10_features' in meta:
+        st.divider(); st.subheader('SHAP Feature Importance')
+        sd=pd.DataFrame(meta['shap_top10_features'])
+        fig_si,ax_si=plt.subplots(figsize=(9,5))
+        ax_si.barh(sd['Feature'][::-1],sd['Mean_SHAP'][::-1],color='#E53935',height=0.6,edgecolor='white')
+        ax_si.set_xlabel('Mean |SHAP|'); ax_si.set_title('SHAP Feature Importance')
+        ax_si.set_yticklabels([f.replace('_te','').replace('_le','').replace('_enc','') for f in sd['Feature'][::-1]],fontsize=9)
+        st.pyplot(fig_si,use_container_width=True); plt.close()
+    st.divider(); st.subheader('Model Config')
+    st.json({'model_type':meta.get('model_type'),'n_features':meta.get('n_features'),
+             'threshold':meta.get('threshold'),'strategy':meta.get('imbalance_strategy')})

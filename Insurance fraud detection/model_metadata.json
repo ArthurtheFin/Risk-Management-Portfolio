@@ -1,0 +1,116 @@
+{
+  "model_type": "XGBoost",
+  "version": "1.0",
+  "feature_names": [
+    "incident_severity_le",
+    "auto_make_te",
+    "number_of_vehicles_involved",
+    "witnesses",
+    "injury_claim",
+    "months_as_customer",
+    "auto_model_te",
+    "umbrella_limit",
+    "policy_csl_le",
+    "insured_hobbies_te",
+    "injury_no_police_report",
+    "incident_hour_of_the_day",
+    "incident_state_te",
+    "fraud_flag_score",
+    "is_new_policy",
+    "insured_relationship_te",
+    "auto_year",
+    "policy_annual_premium",
+    "incident_city_te",
+    "total_claim_amount",
+    "policy_bind_date_te",
+    "no_witnesses",
+    "collision_type_le",
+    "incident_type_le",
+    "high_claim_no_witness",
+    "property_claim",
+    "policy_state_le",
+    "claim_amount_outlier",
+    "insured_education_level_enc"
+  ],
+  "n_features": 29,
+  "best_params": {
+    "colsample_bytree": 0.5442462510259598,
+    "gamma": 0.0979914312095726,
+    "learning_rate": 0.019045457782107613,
+    "max_depth": 7,
+    "min_child_weight": 2,
+    "n_estimators": 566,
+    "reg_alpha": 0.8287375091519293,
+    "reg_lambda": 1.2135066533871786,
+    "subsample": 0.7123738038749523
+  },
+  "threshold": 0.5080994963645935,
+  "threshold_method": "F1-optimal",
+  "imbalance_strategy": "SMOTE + scale_pos_weight",
+  "scale_pos_weight": 3.04040404040404,
+  "performance": {
+    "auc_roc": 0.7389,
+    "pr_auc": 0.5061,
+    "f1": 0.6122,
+    "recall": 0.6122,
+    "precision": 0.6122
+  },
+  "confusion_matrix": {
+    "TP": 30,
+    "FP": 19,
+    "FN": 19,
+    "TN": 132
+  },
+  "cost_analysis": {
+    "fn_cost_per_case": 45000,
+    "fp_cost_per_case": 500,
+    "total_cost_at_threshold": 74.0
+  },
+  "shap_top10_features": [
+    {
+      "Feature": "incident_severity_le",
+      "Mean_SHAP": 0.1993894419221986
+    },
+    {
+      "Feature": "auto_model_te",
+      "Mean_SHAP": 0.07605257032978717
+    },
+    {
+      "Feature": "incident_state_te",
+      "Mean_SHAP": 0.0529080570873532
+    },
+    {
+      "Feature": "no_witnesses",
+      "Mean_SHAP": 0.04628209452723071
+    },
+    {
+      "Feature": "incident_city_te",
+      "Mean_SHAP": 0.0326629625677767
+    },
+    {
+      "Feature": "insured_relationship_te",
+      "Mean_SHAP": 0.03137507618912072
+    },
+    {
+      "Feature": "total_claim_amount",
+      "Mean_SHAP": 0.029566040582208603
+    },
+    {
+      "Feature": "auto_year",
+      "Mean_SHAP": 0.028708492368461788
+    },
+    {
+      "Feature": "number_of_vehicles_involved",
+      "Mean_SHAP": 0.02678465750260772
+    },
+    {
+      "Feature": "policy_annual_premium",
+      "Mean_SHAP": 0.024803215428005912
+    }
+  ],
+  "shap_low_signal_features": [
+    "is_new_policy",
+    "high_claim_no_witness",
+    "claim_amount_outlier"
+  ]
+}

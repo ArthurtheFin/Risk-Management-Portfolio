@@ -1,0 +1,145 @@
+{
+  "feature_names": [
+    "incident_severity_le",
+    "auto_make_te",
+    "number_of_vehicles_involved",
+    "witnesses",
+    "injury_claim",
+    "months_as_customer",
+    "auto_model_te",
+    "umbrella_limit",
+    "policy_csl_le",
+    "insured_hobbies_te",
+    "injury_no_police_report",
+    "incident_hour_of_the_day",
+    "incident_state_te",
+    "fraud_flag_score",
+    "is_new_policy",
+    "insured_relationship_te",
+    "auto_year",
+    "policy_annual_premium",
+    "incident_city_te",
+    "total_claim_amount",
+    "policy_bind_date_te",
+    "no_witnesses",
+    "collision_type_le",
+    "incident_type_le",
+    "high_claim_no_witness",
+    "property_claim",
+    "policy_state_le",
+    "claim_amount_outlier",
+    "insured_education_level_enc"
+  ],
+  "n_features": 29,
+  "feature_types": {
+    "original_numerical": [
+      "number_of_vehicles_involved",
+      "witnesses",
+      "injury_claim",
+      "months_as_customer",
+      "umbrella_limit",
+      "incident_hour_of_the_day",
+      "auto_year",
+      "policy_annual_premium",
+      "total_claim_amount",
+      "property_claim"
+    ],
+    "log_transforms": [],
+    "behavioral_flags": [
+      "injury_no_police_report",
+      "is_new_policy",
+      "no_witnesses",
+      "high_claim_no_witness",
+      "claim_amount_outlier"
+    ],
+    "ratio_features": [
+      "fraud_flag_score"
+    ],
+    "encoded_categorical": [
+      "incident_severity_le",
+      "auto_make_te",
+      "auto_model_te",
+      "policy_csl_le",
+      "insured_hobbies_te",
+      "incident_state_te",
+      "insured_relationship_te",
+      "incident_city_te",
+      "policy_bind_date_te",
+      "collision_type_le",
+      "incident_type_le",
+      "policy_state_le",
+      "insured_education_level_enc"
+    ]
+  },
+  "top10_by_mi": [
+    {
+      "Feature": "policy_bind_date_te",
+      "MI Score": 0.44143789718559745
+    },
+    {
+      "Feature": "incident_severity_le",
+      "MI Score": 0.12854312564210812
+    },
+    {
+      "Feature": "insured_hobbies_te",
+      "MI Score": 0.05739992851478459
+    },
+    {
+      "Feature": "property_claim",
+      "MI Score": 0.028535918820722372
+    },
+    {
+      "Feature": "incident_state_te",
+      "MI Score": 0.02752818021921377
+    },
+    {
+      "Feature": "total_claim_amount",
+      "MI Score": 0.02164392498886003
+    },
+    {
+      "Feature": "incident_type_le",
+      "MI Score": 0.021586228727597412
+    },
+    {
+      "Feature": "number_of_vehicles_involved",
+      "MI Score": 0.01839371299500403
+    },
+    {
+      "Feature": "injury_claim",
+      "MI Score": 0.013327248959685623
+    },
+    {
+      "Feature": "collision_type_le",
+      "MI Score": 0.012392435364757537
+    }
+  ],
+  "encoding_strategy": {
+    "binary": [
+      "property_damage",
+      "police_report_available"
+    ],
+    "ordinal": [
+      "insured_education_level"
+    ],
+    "target_encoding": [
+      "policy_bind_date",
+      "insured_occupation",
+      "insured_hobbies",
+      "insured_relationship",
+      "incident_date",
+      "incident_state",
+      "incident_city",
+      "auto_make",
+      "auto_model"
+    ],
+    "label_encoding": [
+      "policy_state",
+      "policy_csl",
+      "insured_sex",
+      "incident_type",
+      "collision_type",
+      "incident_severity",
+      "authorities_contacted"
+    ]
+  }
+}
