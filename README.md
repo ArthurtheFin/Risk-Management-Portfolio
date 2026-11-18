@@ -1,10 +1,6 @@
 # Risk Management Portfolio
 
-**Vietnam Quant Research** · Open source, public for research and learning.
-
 Two end-to-end risk modeling projects in Python and Jupyter.
-
-`#vietnam` `#quant-research` `#risk-management` `#credit-risk` `#fraud-detection` `#xgboost` `#shap`
 
 ## 1. Credit Risk Scorecard
 
